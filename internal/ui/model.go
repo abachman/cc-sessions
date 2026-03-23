@@ -32,6 +32,14 @@ var (
 	detailStyle = listStyle.Copy()
 )
 
+type focusTarget int
+
+const (
+	focusSearch focusTarget = iota
+	focusList
+	focusDetails
+)
+
 type Model struct {
 	search        textinput.Model
 	list          viewport.Model
@@ -42,6 +50,7 @@ type Model struct {
 	width         int
 	height        int
 	err           error
+	focus         focusTarget
 	projectFolder string
 }
 
@@ -60,12 +69,13 @@ func NewModel() (Model, error) {
 		search:   search,
 		sessions: sessions,
 		filtered: sessions,
+		focus:    focusSearch,
 	}
 	model.projectFolder = currentProjectDir(sessions)
 	model.list = viewport.New(0, 0)
 	model.details = viewport.New(0, 0)
 	model.syncList()
-	model.syncDetails()
+	model.syncDetails(true)
 	return model, nil
 }
 
@@ -83,25 +93,42 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
-		case "up", "k":
-			m.move(-1)
+		case "tab":
+			m.cycleFocus(1)
 			return m, nil
-		case "down", "j":
-			m.move(1)
+		case "shift+tab":
+			m.cycleFocus(-1)
 			return m, nil
+		}
+
+		switch m.focus {
+		case focusList:
+			switch msg.String() {
+			case "up", "k":
+				m.move(-1)
+				return m, nil
+			case "down", "j":
+				m.move(1)
+				return m, nil
+			}
+		case focusDetails:
+			var vpCmd tea.Cmd
+			m.details, vpCmd = m.details.Update(msg)
+			return m, vpCmd
 		}
 	}
 
-	var cmd tea.Cmd
-	prev := m.search.Value()
-	m.search, cmd = m.search.Update(msg)
-	if m.search.Value() != prev {
-		m.applyFilter()
+	if m.focus == focusSearch {
+		var cmd tea.Cmd
+		prev := m.search.Value()
+		m.search, cmd = m.search.Update(msg)
+		if m.search.Value() != prev {
+			m.applyFilter()
+		}
+		return m, cmd
 	}
 
-	var vpCmd tea.Cmd
-	m.details, vpCmd = m.details.Update(msg)
-	return m, tea.Batch(cmd, vpCmd)
+	return m, nil
 }
 
 func (m Model) View() string {
@@ -117,17 +144,17 @@ func (m Model) View() string {
 		header = append(header, mutedStyle.Render(m.projectFolder))
 	}
 
-	leftWidth := max(32, m.width/3)
-	rightWidth := max(40, m.width-leftWidth-8)
-	list := listStyle.Width(leftWidth).Height(max(8, m.height-8)).Render(m.list.View())
-	detail := detailStyle.Width(rightWidth).Height(max(8, m.height-8)).Render(m.details.View())
+	leftWidth, rightWidth, panelHeight := m.panelDimensions()
+	list := m.panelStyle(focusList).Width(leftWidth).Height(panelHeight).Render(m.list.View())
+	detail := m.panelStyle(focusDetails).Width(rightWidth).Height(panelHeight).Render(m.details.View())
 
 	body := lipgloss.JoinHorizontal(lipgloss.Top, list, detail)
+
 	return appStyle.Render(strings.Join([]string{
 		strings.Join(header, "  "),
 		m.search.View(),
 		body,
-		mutedStyle.Render("Controls: type to search, j/k or arrows to move, q to quit"),
+		mutedStyle.Render("Controls: Tab cycles focus, j/k or arrows move or scroll in the focused pane, q quits"),
 	}, "\n\n"))
 }
 
@@ -137,7 +164,7 @@ func (m *Model) applyFilter() {
 		m.filtered = m.sessions
 		m.selected = 0
 		m.syncList()
-		m.syncDetails()
+		m.syncDetails(true)
 		return
 	}
 
@@ -150,7 +177,7 @@ func (m *Model) applyFilter() {
 	m.filtered = filtered
 	m.selected = 0
 	m.syncList()
-	m.syncDetails()
+	m.syncDetails(true)
 }
 
 func (m *Model) move(delta int) {
@@ -165,7 +192,7 @@ func (m *Model) move(delta int) {
 		m.selected = len(m.filtered) - 1
 	}
 	m.syncList()
-	m.syncDetails()
+	m.syncDetails(true)
 }
 
 func (m *Model) syncList() {
@@ -173,33 +200,35 @@ func (m *Model) syncList() {
 	m.ensureListSelectionVisible()
 }
 
-func (m *Model) syncDetails() {
+func (m *Model) syncDetails(resetScroll bool) {
 	if len(m.filtered) == 0 {
 		m.details.SetContent("No sessions matched the current filter.")
-		m.details.GotoTop()
+		if resetScroll {
+			m.details.GotoTop()
+		}
 		return
 	}
 
 	selected := m.filtered[m.selected]
 	lines := []string{
 		titleStyle.Render(selected.Summary),
-		fmt.Sprintf("Session: %s", selected.ID),
-		fmt.Sprintf("Updated: %s", formatTime(selected.UpdatedAt)),
+		wrapLabelValue("Session", selected.ID, max(20, m.details.Width)),
+		wrapLabelValue("Updated", formatTime(selected.UpdatedAt), max(20, m.details.Width)),
 	}
 	if !selected.StartedAt.IsZero() {
-		lines = append(lines, fmt.Sprintf("Started: %s", formatTime(selected.StartedAt)))
+		lines = append(lines, wrapLabelValue("Started", formatTime(selected.StartedAt), max(20, m.details.Width)))
 	}
 	if selected.Branch != "" {
-		lines = append(lines, fmt.Sprintf("Branch: %s", selected.Branch))
+		lines = append(lines, wrapLabelValue("Branch", selected.Branch, max(20, m.details.Width)))
 	}
 	if selected.CWD != "" {
-		lines = append(lines, fmt.Sprintf("CWD: %s", selected.CWD))
+		lines = append(lines, wrapLabelValue("CWD", selected.CWD, max(20, m.details.Width)))
 	}
 	lines = append(lines,
 		fmt.Sprintf("Messages: %d total, %d user, %d assistant", selected.MessageCount, selected.UserPrompts, selected.AssistantMsgs),
-		fmt.Sprintf("File: %s", selected.Path),
+		wrapLabelValue("File", selected.Path, max(20, m.details.Width)),
 		"",
-		titleStyle.Render("Transcript"),
+		titleStyle.Render("Full Session Log"),
 	)
 
 	for _, entry := range selected.Transcript {
@@ -207,22 +236,63 @@ func (m *Model) syncDetails() {
 		if label == "" {
 			label = entry.Type
 		}
-		lines = append(lines, fmt.Sprintf("[%s] %s", strings.ToUpper(label), oneLine(entry.Content)))
+		header := fmt.Sprintf("[%s] %s", strings.ToUpper(label), formatTime(entry.Timestamp))
+		lines = append(lines, header)
+		lines = append(lines, wrapText(entry.Content, max(20, m.details.Width)))
+		lines = append(lines, "")
 	}
 
 	m.details.SetContent(strings.Join(lines, "\n"))
-	m.details.GotoTop()
+	if resetScroll {
+		m.details.GotoTop()
+	}
 }
 
 func (m *Model) resize() {
-	leftWidth := max(32, m.width/3)
-	rightWidth := max(40, m.width-leftWidth-10)
-	height := max(8, m.height-12)
-	m.list.Width = leftWidth - 4
-	m.list.Height = height - 2
-	m.details.Width = rightWidth - 4
-	m.details.Height = height - 2
+	leftWidth, rightWidth, panelHeight := m.panelDimensions()
+	horizontalFrame, verticalFrame := listStyle.GetFrameSize()
+	m.list.Width = max(1, leftWidth-horizontalFrame)
+	m.list.Height = max(1, panelHeight-verticalFrame)
+	m.details.Width = max(1, rightWidth-horizontalFrame)
+	m.details.Height = max(1, panelHeight-verticalFrame)
 	m.syncList()
+	m.syncDetails(false)
+}
+
+func (m Model) panelDimensions() (leftWidth, rightWidth, panelHeight int) {
+	leftWidth = max(32, m.width/3)
+	rightWidth = max(40, m.width-leftWidth-8)
+	panelHeight = max(8, m.height-10)
+	return leftWidth, rightWidth, panelHeight
+}
+
+func (m *Model) cycleFocus(delta int) {
+	targets := []focusTarget{focusSearch, focusList, focusDetails}
+	index := 0
+	for i, target := range targets {
+		if target == m.focus {
+			index = i
+			break
+		}
+	}
+	index = (index + delta + len(targets)) % len(targets)
+	m.focus = targets[index]
+	if m.focus == focusSearch {
+		m.search.Focus()
+		return
+	}
+	m.search.Blur()
+}
+
+func (m Model) panelStyle(target focusTarget) lipgloss.Style {
+	style := listStyle
+	if target == focusDetails {
+		style = detailStyle
+	}
+	if m.focus == target {
+		return style.BorderForeground(lipgloss.Color("69"))
+	}
+	return style
 }
 
 func (m Model) renderListContent(width int) string {
@@ -299,6 +369,44 @@ func truncate(value string, width int) string {
 func oneLine(value string) string {
 	value = strings.Join(strings.Fields(value), " ")
 	return truncate(value, 120)
+}
+
+func wrapLabelValue(label, value string, width int) string {
+	return wrapText(fmt.Sprintf("%s: %s", label, value), width)
+}
+
+func wrapText(value string, width int) string {
+	if width <= 0 {
+		return value
+	}
+
+	sourceLines := strings.Split(strings.TrimRight(value, "\n"), "\n")
+	wrapped := make([]string, 0, len(sourceLines))
+	for _, line := range sourceLines {
+		if strings.TrimSpace(line) == "" {
+			wrapped = append(wrapped, "")
+			continue
+		}
+
+		words := strings.Fields(line)
+		if len(words) == 0 {
+			wrapped = append(wrapped, "")
+			continue
+		}
+
+		current := words[0]
+		for _, word := range words[1:] {
+			if len([]rune(current))+1+len([]rune(word)) > width {
+				wrapped = append(wrapped, current)
+				current = word
+				continue
+			}
+			current += " " + word
+		}
+		wrapped = append(wrapped, current)
+	}
+
+	return strings.Join(wrapped, "\n")
 }
 
 func max(a, b int) int {

@@ -6,7 +6,7 @@ It maps the current directory to Claude's project history folder under `~/.claud
 
 - a searchable session list
 - session metadata such as timestamps and branch
-- a transcript preview for the selected session
+- the full session log for the selected session
 
 ## Run
 
@@ -17,7 +17,8 @@ go run ./cmd/cview
 ## Controls
 
 - Type to filter sessions
-- `j` / `k` or arrow keys to move
+- `Tab` to cycle focus between search, session list, and session log
+- `j` / `k` or arrow keys to move in the session list or scroll the session log when that pane is focused
 - `q` to quit
 
 ## Notes
@@ -27,5 +28,3 @@ This repo depends on:
 - `github.com/charmbracelet/bubbletea`
 - `github.com/charmbracelet/bubbles`
 - `github.com/charmbracelet/lipgloss`
-
-If `go mod tidy` fails in a restricted environment, run it again with network access to populate `go.sum`.
