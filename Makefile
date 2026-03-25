@@ -19,7 +19,7 @@ $(GOMODCACHE):
 $(BIN_DIR): 
 	mkdir -p $(BIN_DIR)
 
-.PHONY: build run test fmt tidy lint clean
+.PHONY: build run test coverage fmt tidy lint clean
 
 build: $(BIN_DIR) $(GOCACHE) $(GOMODCACHE)
 	GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) $(GO) build -o $(BIN) ./cmd/$(APP)
@@ -29,6 +29,9 @@ run: $(GOCACHE) $(GOMODCACHE)
 
 test: $(GOCACHE) $(GOMODCACHE)
 	GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) $(GO) test $(PKGS)
+
+coverage: $(GOCACHE) $(GOMODCACHE)
+	GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) $(GO) test -v -failfast -race -coverpkg=$(PKGS) -covermode=atomic -coverprofile=coverage.txt $(PKGS)
 
 fmt:
 	$(GO) fmt $(PKGS)

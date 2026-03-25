@@ -24,6 +24,10 @@
 - Build: `make build`
 - Test: `make test`
 - Lint: `make lint`
+- Format: `make fmt`
+
+> [!IMPORTANT]
+> Always test, lint, and fmt before committing code.
 
 The `Makefile` sets `GOCACHE` and `GOMODCACHE` into the workspace-local `.cache/` directory. Prefer the `Makefile` targets when validating changes.
 
@@ -32,7 +36,6 @@ The `Makefile` sets `GOCACHE` and `GOMODCACHE` into the workspace-local `.cache/
 - Read `README.md` first for the user-facing behavior and control scheme.
 - Use `docs/claude-session-log-taxonomy.md` when changing parsing or transcript presentation. The viewer intentionally preserves non-chat events from Claude logs.
 - `projectHistoryDir` in `internal/claude/sessions.go` sanitizes paths by replacing `/` with `-`; if session discovery appears broken, verify the expected Claude history folder name first.
-- The repo currently has no `*_test.go` files even though CI runs `go test ./...`. Be careful with parser and UI changes because automated coverage is minimal.
 - Keep changes small and consistent with the existing structure: data ingestion in `internal/claude`, presentation/state in `internal/ui`, startup in `cmd/ccsessions`.
 
 ## Dependencies and UI stack

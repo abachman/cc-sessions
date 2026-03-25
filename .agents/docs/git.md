@@ -1,3 +1,5 @@
+This project is in GitHub at `reasonable-systems/ccsessions`.
+
 ## Branch naming
 
 Git branch names must include a `descriptive-name`: three to five words of descriptive text summarizing what the branch is for, lowercase, with dash separators.
@@ -13,3 +15,5 @@ When creating pull requests on GitHub be brief and concise, use high-level techn
 ## gh command line tool
 
 You can use the `gh` command line tool to create PRs, check on the progress of CI workflows, and check out pull requests for review.
+
+Upon request,
