@@ -2,7 +2,7 @@
 
 `ccsessions` (from **C**laude **C**ode **Sessions**) is a terminal UI for browsing Claude Code session history for the current working directory.
 
-It maps the current directory to Claude's project history folder under `~/.claude/projects`, loads each `.jsonl` session file, and shows:
+It maps the current directory to Claude's project history folder under `~/.claude/projects` by default, or a custom Claude directory passed with `--claude-dir`, loads each `.jsonl` session file, and shows:
 
 - a searchable session list
 - session metadata such as timestamps and branch
@@ -12,6 +12,18 @@ It maps the current directory to Claude's project history folder under `~/.claud
 
 ```bash
 go run ./cmd/ccsessions
+```
+
+To read sessions from a different Claude config directory:
+
+```bash
+go run ./cmd/ccsessions --claude-dir ~/.claude-personal
+```
+
+To show discovery diagnostics in the UI header:
+
+```bash
+go run ./cmd/ccsessions --claude-dir ~/.claude-personal --debug
 ```
 
 ## Build
@@ -40,6 +52,18 @@ After that, run it with:
 
 ```bash
 ccsessions
+```
+
+Or:
+
+```bash
+ccsessions --claude-dir ~/.claude-personal
+```
+
+You can combine it with:
+
+```bash
+ccsessions --debug
 ```
 
 ## Controls
