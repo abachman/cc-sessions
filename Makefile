@@ -32,6 +32,7 @@ test: $(GOCACHE) $(GOMODCACHE)
 
 fmt:
 	$(GO) fmt $(PKGS)
+	golangci-lint run --fix
 
 tidy: $(GOCACHE) $(GOMODCACHE)
 	GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) $(GO) mod tidy
